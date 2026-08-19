@@ -854,3 +854,145 @@ h2{margin:3px 0 0;font-size:25px}
   .floating-sticker[data-slot="4"]{left:calc(50% - min(33vw,165px) - 6px);bottom:82px}
   .home-stage.opening-chapter::after{width:min(66vw,330px);min-height:410px}
 }
+
+
+/* =========================================================
+   VIVA 1.5 RELEASE — ÚLTIMO POLIMENTO
+   ========================================================= */
+
+/* Etiquetas parecem realmente encaixadas, sem cobrir o lettering */
+.floating-sticker{
+  width:88px;
+  min-height:37px;
+  font-size:10.5px;
+}
+
+.floating-sticker[data-slot="0"]{
+  left:calc(50% - min(34vw,175px) + 4px);
+  top:69px;
+}
+.floating-sticker[data-slot="1"]{
+  right:calc(50% - min(34vw,175px) + 4px);
+  top:69px;
+}
+.floating-sticker[data-slot="2"]{
+  right:calc(50% - min(34vw,175px) - 16px);
+}
+.floating-sticker[data-slot="3"]{
+  right:calc(50% - min(34vw,175px) + 4px);
+  bottom:76px;
+}
+.floating-sticker[data-slot="4"]{
+  left:calc(50% - min(34vw,175px) + 4px);
+  bottom:76px;
+}
+
+/* Abertura: mais calma, menos "troca de tela" */
+.home-stage.opening-chapter .notebook-cover{
+  transition:
+    transform .62s cubic-bezier(.18,.72,.15,1),
+    filter .36s ease,
+    opacity .36s ease,
+    box-shadow .36s ease;
+  transform:
+    perspective(1600px)
+    translateX(-5%)
+    rotateY(-54deg)
+    rotateZ(-.35deg);
+}
+.home-stage.opening-chapter::after{
+  animation-duration:.62s;
+}
+
+/* Virada final: não divide a interface ao meio.
+   A folha sai antes de chegar a 90 graus e desaparece suavemente. */
+.turning-page.next{
+  animation:paperReleaseNext .62s cubic-bezier(.19,.73,.16,1) forwards!important;
+}
+.turning-page.prev{
+  animation:paperReleasePrev .62s cubic-bezier(.19,.73,.16,1) forwards!important;
+}
+
+@keyframes paperReleaseNext{
+  0%{
+    transform:perspective(1500px) translateX(0) rotateY(0deg);
+    opacity:1;
+    filter:brightness(1)
+  }
+  22%{
+    transform:perspective(1500px) translateX(-2%) rotateY(-7deg);
+    opacity:1
+  }
+  64%{
+    transform:perspective(1500px) translateX(-25%) rotateY(-38deg);
+    opacity:.96;
+    filter:brightness(.94)
+  }
+  100%{
+    transform:perspective(1500px) translateX(-58%) rotateY(-62deg);
+    opacity:0;
+    filter:brightness(.87)
+  }
+}
+
+@keyframes paperReleasePrev{
+  0%{
+    transform:perspective(1500px) translateX(0) rotateY(0deg);
+    opacity:1;
+    filter:brightness(1)
+  }
+  22%{
+    transform:perspective(1500px) translateX(2%) rotateY(7deg);
+    opacity:1
+  }
+  64%{
+    transform:perspective(1500px) translateX(25%) rotateY(38deg);
+    opacity:.96;
+    filter:brightness(.94)
+  }
+  100%{
+    transform:perspective(1500px) translateX(58%) rotateY(62deg);
+    opacity:0;
+    filter:brightness(.87)
+  }
+}
+
+.turning-page.next::before,
+.turning-page.prev::before{
+  animation-duration:.62s!important;
+}
+
+/* Abas internas ainda acessíveis, mas um pouco mais silenciosas */
+.tab{
+  font-size:9px;
+  padding:6px 8px 5px;
+  min-height:29px;
+}
+
+@media(max-width:430px){
+  .floating-sticker{
+    width:84px;
+    min-height:36px;
+    font-size:10px;
+  }
+
+  .floating-sticker[data-slot="0"]{
+    left:calc(50% - min(33vw,165px) + 3px);
+    top:64px;
+  }
+  .floating-sticker[data-slot="1"]{
+    right:calc(50% - min(33vw,165px) + 3px);
+    top:64px;
+  }
+  .floating-sticker[data-slot="2"]{
+    right:calc(50% - min(33vw,165px) - 14px);
+  }
+  .floating-sticker[data-slot="3"]{
+    right:calc(50% - min(33vw,165px) + 3px);
+    bottom:72px;
+  }
+  .floating-sticker[data-slot="4"]{
+    left:calc(50% - min(33vw,165px) + 3px);
+    bottom:72px;
+  }
+}

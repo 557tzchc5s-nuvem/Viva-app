@@ -1,4 +1,4 @@
-const CACHE = 'viva-v1.5-final';
+const CACHE = 'viva-v1.5-release-datefix';
 const ASSETS = [
   './',
   './index.html',

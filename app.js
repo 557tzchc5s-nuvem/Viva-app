@@ -785,6 +785,14 @@
     }
 
     const clone=source.cloneNode(true);
+
+    /* IMPORTANT:
+       The turning sheet is only a visual snapshot.
+       Remove duplicate IDs so renderAgenda/renderDailyPage always update
+       the real page underneath, not the temporary clone. */
+    clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+    if(clone.hasAttribute('id')) clone.removeAttribute('id');
+
     const sourceTextareas=source.querySelectorAll('textarea');
     const cloneTextareas=clone.querySelectorAll('textarea');
     sourceTextareas.forEach((area,index)=>{
@@ -809,7 +817,7 @@
       layer.classList.remove('active');
       layer.innerHTML='';
       pageTurning=false;
-    },700);
+    },640);
   }
 
   function parseEventsForDate(date){
