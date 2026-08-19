@@ -1,4 +1,4 @@
-const CACHE = 'viva-v1.5.2';
+const CACHE = 'viva-v1.5-final';
 const ASSETS = [
   './',
   './index.html',
@@ -26,7 +26,7 @@ self.addEventListener('fetch', event => {
 
   if(event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
+      fetch(event.request, { cache: 'no-store' })
         .then(response => {
           const copy = response.clone();
           caches.open(CACHE).then(cache => cache.put('./index.html', copy));

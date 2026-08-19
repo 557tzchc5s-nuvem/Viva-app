@@ -358,7 +358,7 @@
         renderFloatingStickers();
         renderStickerTabs();
       }else if(!moved){
-        showSection(btn.dataset.section);
+        openChapter(btn.dataset.section);
       }
 
       dragging=false;
@@ -373,6 +373,23 @@
       stage.classList.remove('reorder-mode');
       renderFloatingStickers();
     });
+  }
+
+  function openChapter(section){
+    if(section === 'home' || !STICKERS.includes(section)){
+      showSection(section);
+      return;
+    }
+    const stage=$('homeStage');
+    if(!stage || currentSection !== 'home'){
+      showSection(section);
+      return;
+    }
+    stage.classList.add('opening-chapter');
+    setTimeout(()=>{
+      showSection(section);
+      stage.classList.remove('opening-chapter');
+    },455);
   }
 
   function showSection(section){
