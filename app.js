@@ -270,38 +270,59 @@
 
     const clearTimer=()=>{clearTimeout(timer);timer=null};
 
+    const getSlotCenters=()=>{
+      return [...document.querySelectorAll('#reorderSlots i')].map(el=>{
+        const r=el.getBoundingClientRect();
+        return {x:r.left+r.width/2,y:r.top+r.height/2};
+      });
+    };
+
     const enterReorder=()=>{
       dragging=true;
       btn.classList.add('longpress');
       stage.classList.add('reorder-mode');
-      showToast('Arraste até uma posição');
-      try{ if(pointerId!==null) btn.setPointerCapture(pointerId); }catch(_){}
+      showToast('Arraste para outro canto');
+      try{
+        if(pointerId!==null) btn.setPointerCapture(pointerId);
+      }catch(_){}
     };
 
     btn.addEventListener('pointerdown',e=>{
       if(e.pointerType==='mouse'&&e.button!==0)return;
       e.preventDefault();
+
       pointerId=e.pointerId;
-      startX=e.clientX;startY=e.clientY;
-      moved=false;dragging=false;
+      startX=e.clientX;
+      startY=e.clientY;
+      moved=false;
+      dragging=false;
+
       clearTimer();
       timer=setTimeout(enterReorder,420);
     },{passive:false});
 
     btn.addEventListener('pointermove',e=>{
-      const dx=e.clientX-startX,dy=e.clientY-startY,distance=Math.hypot(dx,dy);
+      const dx=e.clientX-startX;
+      const dy=e.clientY-startY;
+      const distance=Math.hypot(dx,dy);
+
       if(distance>7)moved=true;
+
       if(!dragging){
         if(distance>18)clearTimer();
         return;
       }
+
       e.preventDefault();
-      const rect=stage.getBoundingClientRect();
-      const x=Math.max(4,Math.min(96,((e.clientX-rect.left)/rect.width)*100));
-      const y=Math.max(5,Math.min(95,((e.clientY-rect.top)/rect.height)*100));
-      btn.style.left=`${x}%`;
-      btn.style.top=`${y}%`;
-      btn.style.animation='none';
+
+      /* durante o arraste, segue o dedo em posição fixa visual */
+      const stageRect=stage.getBoundingClientRect();
+      btn.style.position='absolute';
+      btn.style.left=`${e.clientX-stageRect.left-btn.offsetWidth/2}px`;
+      btn.style.top=`${e.clientY-stageRect.top-btn.offsetHeight/2}px`;
+      btn.style.right='auto';
+      btn.style.bottom='auto';
+      btn.style.transform='scale(1.10) rotate(0deg)';
     },{passive:false});
 
     const finish=e=>{
@@ -309,28 +330,26 @@
 
       if(dragging){
         e.preventDefault();
-        const rect=stage.getBoundingClientRect();
-        const px=((e.clientX-rect.left)/rect.width)*100;
-        const py=((e.clientY-rect.top)/rect.height)*100;
-        const slots=[[18,15],[82,16],[92,53],[77,88],[18,86]];
 
+        const centers=getSlotCenters();
         let nearest=0,best=Infinity;
-        slots.forEach((slot,index)=>{
-          const d=Math.hypot(px-slot[0],py-slot[1]);
-          if(d<best){best=d;nearest=index;}
+
+        centers.forEach((c,index)=>{
+          const d=Math.hypot(e.clientX-c.x,e.clientY-c.y);
+          if(d<best){best=d;nearest=index}
         });
 
         const section=btn.dataset.section;
         const from=state.stickerOrder.indexOf(section);
 
-        if(from>=0&&nearest!==from){
+        if(from>=0 && nearest!==from){
           const next=[...state.stickerOrder];
           const displaced=next[nearest];
           next[nearest]=section;
           next[from]=displaced;
           state.stickerOrder=next;
           saveState();
-          showToast('Ordem salva');
+          showToast('Posição salva');
         }else{
           showToast('Posição mantida');
         }

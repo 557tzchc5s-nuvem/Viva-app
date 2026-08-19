@@ -585,3 +585,218 @@ h2{margin:3px 0 0;font-size:25px}
 .sticker-tabs{gap:4px;padding-left:10px;padding-right:10px}
 .tab{padding:8px 10px 7px;font-size:10px;border-radius:11px 11px 4px 4px}
 @media(max-width:430px){.home-stage{min-height:calc(100dvh - 80px - var(--safe-top) - var(--safe-bottom))}.notebook-cover{width:min(70vw,350px);min-height:420px}.floating-sticker{width:94px;font-size:11px}}
+
+
+/* ===== VIVA 1.5.2 — ETIQUETAS ANCORADAS NO CADERNO ===== */
+
+/* A capa ganha mais respiro e vira o centro absoluto da home. */
+.home-stage{
+  min-height:calc(100dvh - 92px - var(--safe-top) - var(--safe-bottom));
+  margin:0 -4px;
+  padding:42px 0 44px;
+}
+
+.notebook-cover{
+  width:min(68vw,350px);
+  min-height:430px;
+  padding:38px 26px 24px 36px;
+}
+
+/* Esconde o "fio" das antigas etiquetas flutuantes. */
+.floating-sticker::after{display:none}
+
+/* As 5 etiquetas agora pertencem fisicamente à borda do caderno. */
+.floating-stickers{
+  position:absolute;
+  inset:0;
+  z-index:8;
+  pointer-events:none;
+}
+
+.floating-sticker{
+  position:absolute;
+  width:96px;
+  min-height:40px;
+  margin:0!important;
+  animation:none!important;
+  transform:none;
+  pointer-events:auto;
+  border-radius:14px;
+  box-shadow:0 10px 22px rgba(25,16,39,.22), inset 0 1px rgba(255,255,255,.45);
+  transition:
+    transform .18s ease,
+    box-shadow .18s ease,
+    filter .18s ease,
+    opacity .18s ease,
+    left .22s ease,
+    right .22s ease,
+    top .22s ease,
+    bottom .22s ease;
+}
+
+/* posição 0 — canto superior esquerdo */
+.floating-sticker[data-slot="0"]{
+  left:calc(50% - min(34vw,175px) - 36px);
+  top:78px;
+  transform:rotate(-2deg);
+}
+
+/* posição 1 — canto superior direito */
+.floating-sticker[data-slot="1"]{
+  right:calc(50% - min(34vw,175px) - 36px);
+  left:auto;
+  top:78px;
+  transform:rotate(2deg);
+}
+
+/* posição 2 — lateral direita / meio */
+.floating-sticker[data-slot="2"]{
+  right:calc(50% - min(34vw,175px) - 52px);
+  left:auto;
+  top:50%;
+  transform:translateY(-50%) rotate(90deg);
+  transform-origin:center;
+}
+
+/* posição 3 — canto inferior direito */
+.floating-sticker[data-slot="3"]{
+  right:calc(50% - min(34vw,175px) - 36px);
+  left:auto;
+  bottom:78px;
+  top:auto;
+  transform:rotate(-2deg);
+}
+
+/* posição 4 — canto inferior esquerdo */
+.floating-sticker[data-slot="4"]{
+  left:calc(50% - min(34vw,175px) - 36px);
+  bottom:78px;
+  top:auto;
+  transform:rotate(2deg);
+}
+
+/* Entrando em modo de reorganização, a capa recua e os "slots" ficam claros. */
+.home-stage.reorder-mode .notebook-cover{
+  filter:brightness(.70) saturate(.76);
+  transform:rotateY(-2.5deg) rotateZ(-.4deg) scale(.965);
+}
+
+.home-stage.reorder-mode .floating-sticker:not(.longpress){
+  opacity:.46;
+}
+
+/* Etiqueta que está sendo arrastada fica claramente destacada. */
+.home-stage.reorder-mode .floating-sticker.longpress{
+  opacity:1;
+  z-index:60;
+  transform:scale(1.10) rotate(0deg)!important;
+  box-shadow:0 24px 54px rgba(25,15,45,.42),0 0 0 4px rgba(255,255,255,.24);
+}
+
+/* Slots visuais agora acompanham exatamente as bordas/cantos. */
+.reorder-slots{
+  position:absolute;
+  inset:0;
+  z-index:7;
+  pointer-events:none;
+  opacity:0;
+  transition:opacity .18s ease;
+}
+.home-stage.reorder-mode .reorder-slots{opacity:1}
+
+.reorder-slots i{
+  position:absolute;
+  width:104px;
+  height:48px;
+  border:2px dashed rgba(255,255,255,.36);
+  border-radius:16px;
+  background:rgba(255,255,255,.03);
+  box-shadow:0 0 0 4px rgba(118,87,255,.045);
+  transform:none;
+}
+
+.reorder-slots i:nth-child(1){
+  left:calc(50% - min(34vw,175px) - 40px);
+  top:74px;
+}
+.reorder-slots i:nth-child(2){
+  right:calc(50% - min(34vw,175px) - 40px);
+  top:74px;
+}
+.reorder-slots i:nth-child(3){
+  right:calc(50% - min(34vw,175px) - 56px);
+  top:50%;
+  transform:translateY(-50%) rotate(90deg);
+}
+.reorder-slots i:nth-child(4){
+  right:calc(50% - min(34vw,175px) - 40px);
+  bottom:74px;
+}
+.reorder-slots i:nth-child(5){
+  left:calc(50% - min(34vw,175px) - 40px);
+  bottom:74px;
+}
+
+/* Dica fica mais discreta, sem competir com a capa. */
+.sticker-hint{
+  margin:-10px auto 4px;
+  opacity:.78;
+  font-size:10px;
+}
+
+/* Ajustes finos para iPhone 13 / telas estreitas */
+@media(max-width:430px){
+  .home-stage{
+    min-height:calc(100dvh - 84px - var(--safe-top) - var(--safe-bottom));
+    padding-top:36px;
+    padding-bottom:38px;
+  }
+
+  .notebook-cover{
+    width:min(66vw,330px);
+    min-height:410px;
+  }
+
+  .floating-sticker{
+    width:90px;
+    min-height:38px;
+    font-size:11px;
+  }
+
+  .floating-sticker[data-slot="0"]{
+    left:calc(50% - min(33vw,165px) - 32px);
+    top:70px;
+  }
+  .floating-sticker[data-slot="1"]{
+    right:calc(50% - min(33vw,165px) - 32px);
+    top:70px;
+  }
+  .floating-sticker[data-slot="2"]{
+    right:calc(50% - min(33vw,165px) - 48px);
+  }
+  .floating-sticker[data-slot="3"]{
+    right:calc(50% - min(33vw,165px) - 32px);
+    bottom:70px;
+  }
+  .floating-sticker[data-slot="4"]{
+    left:calc(50% - min(33vw,165px) - 32px);
+    bottom:70px;
+  }
+
+  .reorder-slots i{width:98px;height:46px}
+  .reorder-slots i:nth-child(1){
+    left:calc(50% - min(33vw,165px) - 36px); top:67px;
+  }
+  .reorder-slots i:nth-child(2){
+    right:calc(50% - min(33vw,165px) - 36px); top:67px;
+  }
+  .reorder-slots i:nth-child(3){
+    right:calc(50% - min(33vw,165px) - 52px);
+  }
+  .reorder-slots i:nth-child(4){
+    right:calc(50% - min(33vw,165px) - 36px); bottom:67px;
+  }
+  .reorder-slots i:nth-child(5){
+    left:calc(50% - min(33vw,165px) - 36px); bottom:67px;
+  }
+}
