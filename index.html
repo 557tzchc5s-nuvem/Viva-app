@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <meta name="theme-color" content="#7657ff" />
+  <meta name="theme-color" content="#17131f" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="VIVA" />
   <meta name="format-detection" content="telephone=no" />
   <title>VIVA — Sua vida em páginas</title>
@@ -15,50 +15,63 @@
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <div id="app" class="app-shell">
+  <div id="app" class="app-shell home-mode">
     <header class="topbar">
       <button class="brand" data-section="home" aria-label="Ir para a capa">VIVA</button>
       <div class="date-pill" id="topDate"></div>
-      <button class="reflection-shortcut" id="reflectionShortcut" aria-label="Ver reflexões">✦</button>
+      <div class="top-actions">
+        <button class="icon-btn" id="themeToggle" aria-label="Alternar tema">☾</button>
+        <button class="icon-btn reflection-shortcut" id="reflectionShortcut" aria-label="Ver reflexões">✦</button>
+      </div>
     </header>
 
-    <nav class="sticker-tabs" aria-label="Seções do caderno">
-      <button class="tab tab-agenda" data-section="agenda">Agenda</button>
-      <button class="tab tab-finance" data-section="financeiro">Finanças</button>
-      <button class="tab tab-training" data-section="treino">Treino</button>
-      <button class="tab tab-diet" data-section="dieta">Dieta</button>
-      <button class="tab tab-work" data-section="trabalho">Trabalho</button>
-    </nav>
+    <nav id="stickerTabs" class="sticker-tabs" aria-label="Capítulos do caderno"></nav>
 
     <main id="paper" class="paper" aria-live="polite">
-      <div class="edge-zone edge-left" id="edgeLeft" aria-label="Página anterior"><span>‹</span></div>
-      <div class="edge-zone edge-right" id="edgeRight" aria-label="Próxima página"><span>›</span></div>
+      <div class="page-turn-sheet" id="pageTurnSheet"></div>
 
-      <section id="homeSection" class="section active-section">
-        <div class="cover-head">
-          <div class="cover-kicker">memento vivere</div>
-          <h1>VIVA</h1>
-          <p>Sua vida em páginas.</p>
+      <section id="homeSection" class="section active-section home-section">
+        <div class="home-stage" id="homeStage">
+          <div class="floating-stickers" id="floatingStickers" aria-label="Áreas do VIVA"></div>
+
+          <article class="notebook-cover" aria-label="Capa do VIVA">
+            <div class="cover-spine"></div>
+            <div class="cover-elastic"></div>
+            <div class="cover-brand-block">
+              <span class="cover-kicker">memento vivere</span>
+              <h1>VIVA</h1>
+              <p>Sua vida em páginas.</p>
+            </div>
+
+            <div class="cover-greeting">
+              <span id="dayGreeting">Bom dia.</span>
+              <strong>Por onde começamos?</strong>
+            </div>
+
+            <div class="cover-goals">
+              <div class="cover-goals-head">
+                <span>Metas de hoje</span>
+                <strong id="goalCount">0/3</strong>
+              </div>
+              <div class="progress-track"><div class="progress-bar" id="goalProgress"></div></div>
+              <div id="goalsList" class="goals-list"></div>
+              <button id="addGoalBtn" class="add-line" type="button">＋ nova meta</button>
+            </div>
+          </article>
         </div>
 
-        <div class="today-card">
-          <div class="section-heading-row">
+        <div id="stickerHint" class="sticker-hint" hidden>Toque para abrir · segure para reorganizar</div>
+
+        <section class="home-glance">
+          <div class="glance-head">
             <div>
               <span class="eyebrow">Hoje</span>
-              <h2>Metas do dia</h2>
+              <h2>Seu dia em uma linha</h2>
             </div>
-            <div class="goal-count" id="goalCount">0/3</div>
           </div>
-          <div class="progress-track"><div class="progress-bar" id="goalProgress"></div></div>
-          <div id="goalsList" class="goals-list"></div>
-          <button id="addGoalBtn" class="add-line" type="button">＋ nova meta</button>
-        </div>
-
-        <div class="today-summary">
-          <span class="eyebrow">Seu dia</span>
           <div id="homeTimeline" class="timeline compact"></div>
           <div id="homeEvents" class="home-events"></div>
-        </div>
+        </section>
 
         <button class="reflection-card" id="todayReflectionCard" type="button">
           <span class="reflection-symbol">✦</span>
@@ -68,6 +81,52 @@
           </span>
           <span class="chevron">›</span>
         </button>
+      </section>
+
+      <section id="agendaSection" class="section">
+        <div class="page-header">
+          <button id="agendaPrevBtn" class="page-arrow" aria-label="Anterior">‹</button>
+          <div>
+            <span class="eyebrow">Agenda</span>
+            <h2 id="agendaTitle"></h2>
+          </div>
+          <button id="agendaNextBtn" class="page-arrow" aria-label="Próximo">›</button>
+        </div>
+
+        <div class="view-switch" role="tablist" aria-label="Visualização da agenda">
+          <button class="view-btn active" data-agenda-view="day">Dia</button>
+          <button class="view-btn" data-agenda-view="week">Semana</button>
+          <button class="view-btn" data-agenda-view="month">Mês</button>
+        </div>
+
+        <div id="agendaDayView" class="agenda-view active-agenda-view">
+          <div id="agendaTimeline" class="timeline"></div>
+          <p class="timeline-hint">Escreva o horário naturalmente: <b>14:00-18:00 Reunião</b>.</p>
+          <div class="lined-page agenda-note-page">
+            <textarea id="agendaNotes" spellcheck="true" autocomplete="off" aria-label="Página diária da agenda"></textarea>
+            <div class="page-placeholder" id="agendaPlaceholder">09:00 Dentista
+14:00-16:00 Compromisso
+
+Toque e escreva. Salva sozinho.</div>
+          </div>
+          <div class="page-number" id="agendaPageNumber"></div>
+        </div>
+
+        <div id="agendaWeekView" class="agenda-view">
+          <div class="week-strip" id="weekGrid"></div>
+          <p class="agenda-tip">Toque em um dia para abrir a página diária.</p>
+        </div>
+
+        <div id="agendaMonthView" class="agenda-view">
+          <div class="month-weekdays"><span>SEG</span><span>TER</span><span>QUA</span><span>QUI</span><span>SEX</span><span>SÁB</span><span>DOM</span></div>
+          <div class="month-grid" id="monthGrid"></div>
+          <div class="month-legend">
+            <span><i style="--c:#7657ff"></i>Agenda</span>
+            <span><i style="--c:#42a5ff"></i>Trabalho</span>
+            <span><i style="--c:#ff8a34"></i>Treino</span>
+            <span><i style="--c:#ffd84d"></i>Dieta</span>
+          </div>
+        </div>
       </section>
 
       <section id="dailySection" class="section">
@@ -81,7 +140,7 @@
         </div>
 
         <div id="sharedTimeline" class="timeline"></div>
-        <p class="timeline-hint">Horários escritos nas páginas aparecem aqui automaticamente.</p>
+        <p class="timeline-hint">Horários escritos nesta página aparecem no seu dia automaticamente.</p>
 
         <div class="lined-page">
           <textarea id="dailyNotes" spellcheck="true" autocomplete="off" aria-label="Página de anotações"></textarea>
@@ -101,13 +160,13 @@
         </div>
 
         <div class="balance-card">
-          <span>Saldo da página</span>
+          <span>Saldo desta página</span>
           <strong id="financeBalance">R$ 0,00</strong>
-          <small>Escreva uma movimentação por linha: <b>+500 Tattoo</b> ou <b>-35 Uber</b>.</small>
+          <small>Escreva uma movimentação por linha: <b>+500 Trabalho</b> ou <b>-35 Uber</b>.</small>
         </div>
         <div class="lined-page finance-page">
           <textarea id="financeNotes" spellcheck="true" autocomplete="off" aria-label="Anotações financeiras"></textarea>
-          <div class="page-placeholder">+500 Tattoo
+          <div class="page-placeholder">+500 Trabalho
 -35 Uber
 -80 Material</div>
         </div>
@@ -138,6 +197,12 @@
       <button id="closeReflection" class="continue-btn" type="button">Continuar</button>
     </article>
   </div>
+
+  <div id="entryReveal" class="entry-reveal" aria-hidden="true">
+    <div class="entry-sheet"><span>memento vivere</span></div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="./app.js"></script>
 </body>

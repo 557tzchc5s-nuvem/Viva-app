@@ -1,12 +1,35 @@
 (() => {
   'use strict';
 
-  const STORAGE_KEY = 'viva-v1-state';
-  const DAILY_SECTIONS = ['agenda', 'treino', 'dieta', 'trabalho'];
-  const COLORS = { agenda:'#7657ff', financeiro:'#48c998', treino:'#ff8a34', dieta:'#ffd84d', trabalho:'#42a5ff' };
-  const LABELS = { agenda:'Agenda pessoal', financeiro:'Finanças', treino:'Treino', dieta:'Dieta', trabalho:'Trabalho' };
+  const STORAGE_KEY = 'viva-v1-state'; // Mantém os dados da V1.
+  const DAILY_SECTIONS = ['treino', 'dieta', 'trabalho'];
+  const STICKERS = ['agenda', 'financeiro', 'treino', 'dieta', 'trabalho'];
+
+  const COLORS = {
+    agenda:'#7657ff',
+    financeiro:'#48c998',
+    treino:'#ff8a34',
+    dieta:'#ffd84d',
+    trabalho:'#42a5ff'
+  };
+
+  const STICKER_COLORS = {
+    agenda:'#a995ff',
+    financeiro:'#70ddb5',
+    treino:'#ff9e59',
+    dieta:'#ffe270',
+    trabalho:'#73bbff'
+  };
+
+  const LABELS = {
+    agenda:'Agenda',
+    financeiro:'Finanças',
+    treino:'Treino',
+    dieta:'Dieta',
+    trabalho:'Trabalho'
+  };
+
   const PLACEHOLDERS = {
-    agenda:'09:00 Dentista\n14:00-16:00 Compromisso\n\nToque e escreva. O app salva sozinho.',
     treino:'19:00 Academia\n\nTreino de hoje\nSupino 3x10\nAgachamento 3x8',
     dieta:'08:00 Café da manhã\n12:30 Almoço\n19:30 Jantar\n\nAnote o que comeu, sem burocracia.',
     trabalho:'10:00 Responder clientes\n14:00-18:00 Projeto principal\n\nPrioridades\n• ...'
@@ -56,45 +79,63 @@
     notes:{ agenda:{}, treino:{}, dieta:{}, trabalho:{} },
     finance:{},
     reflectionHistory:{},
-    lastReflectionShown:null
+    lastReflectionShown:null,
+    theme:null,
+    stickerOrder:[...STICKERS],
+    seenStickerHint:false,
+    agendaView:'day'
   };
 
   let state = loadState();
   let currentSection = 'home';
-  let activeDailySection = 'agenda';
+  let activeDailySection = 'treino';
   let currentDate = new Date();
   let currentMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+  let agendaView = state.agendaView || 'day';
   let reflectionReturnSection = 'home';
   let saveTimer = null;
+  let pageTurning = false;
 
   const $ = id => document.getElementById(id);
+  const app = $('app');
   const paper = $('paper');
   const dailyNotes = $('dailyNotes');
+  const agendaNotes = $('agendaNotes');
   const financeNotes = $('financeNotes');
 
   init();
 
   function init() {
-    bindNavigation(); bindInputs(); bindPageGestures(); renderAll(); registerServiceWorker();
-    setTimeout(showDailyReflectionIfNeeded, 420);
+    applyTheme(resolveTheme());
+    bindNavigation();
+    bindInputs();
+    bindPageGestures();
+    renderAll();
+    registerServiceWorker();
+    setTimeout(showDailyReflectionIfNeeded, 360);
   }
 
   function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
 
   function loadState(){
-    try {
+    try{
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return clone(defaults);
+      if(!raw) return clone(defaults);
       const saved = JSON.parse(raw);
+      const order = Array.isArray(saved.stickerOrder) ? saved.stickerOrder.filter(x => STICKERS.includes(x)) : [];
+      STICKERS.forEach(x => { if(!order.includes(x)) order.push(x); });
+
       return {
-        ...clone(defaults), ...saved,
-        goals: Array.isArray(saved.goals) && saved.goals.length ? saved.goals : clone(defaults.goals),
-        goalChecks: saved.goalChecks || {},
-        notes: { ...clone(defaults.notes), ...(saved.notes || {}) },
-        finance: saved.finance || {},
-        reflectionHistory: saved.reflectionHistory || {}
+        ...clone(defaults),
+        ...saved,
+        goals:Array.isArray(saved.goals) && saved.goals.length ? saved.goals : clone(defaults.goals),
+        goalChecks:saved.goalChecks || {},
+        notes:{...clone(defaults.notes), ...(saved.notes || {})},
+        finance:saved.finance || {},
+        reflectionHistory:saved.reflectionHistory || {},
+        stickerOrder:order
       };
-    } catch (err) {
+    }catch(err){
       console.warn('Não foi possível ler os dados salvos.', err);
       return clone(defaults);
     }
@@ -102,306 +143,856 @@
 
   function saveState(){
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(state)), 90);
+    saveTimer = setTimeout(() => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }, 80);
+  }
+
+  function resolveTheme(){
+    if(state.theme === 'light' || state.theme === 'dark') return state.theme;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  function applyTheme(theme){
+    state.theme = theme;
+    document.documentElement.dataset.theme = theme;
+    $('themeToggle').textContent = theme === 'dark' ? '☀' : '☾';
+    $('themeToggle').setAttribute('aria-label', theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if(meta) meta.setAttribute('content', theme === 'dark' ? '#0d0a11' : '#17131f');
+    saveState();
+  }
+
+  function toggleTheme(){
+    applyTheme(state.theme === 'dark' ? 'light' : 'dark');
   }
 
   function isoDate(date){
-    const y=date.getFullYear(), m=String(date.getMonth()+1).padStart(2,'0'), d=String(date.getDate()).padStart(2,'0');
+    const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,'0'),d=String(date.getDate()).padStart(2,'0');
     return `${y}-${m}-${d}`;
   }
-  function monthKey(date){ return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`; }
-  function formatDate(date, options={}) {
-    return new Intl.DateTimeFormat('pt-BR', { weekday:'long', day:'numeric', month:'long', ...options }).format(date);
+
+  function monthKey(date){
+    return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
   }
-  function formatShortDate(date){ return new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'short'}).format(date).replace('.',''); }
-  function sameDay(a,b){ return isoDate(a)===isoDate(b); }
+
+  function formatDate(date, options={}){
+    return new Intl.DateTimeFormat('pt-BR',{weekday:'long',day:'numeric',month:'long',...options}).format(date);
+  }
+
+  function formatShortDate(date){
+    return new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'short'}).format(date).replace('.','');
+  }
+
+  function titleCaseFirst(text){ return text ? text.charAt(0).toUpperCase()+text.slice(1) : text; }
+  function sameDay(a,b){ return isoDate(a) === isoDate(b); }
   function addDays(date,n){ const d=new Date(date); d.setDate(d.getDate()+n); return d; }
-  function addMonths(date,n){ return new Date(date.getFullYear(), date.getMonth()+n, 1); }
+  function addMonths(date,n){ return new Date(date.getFullYear(),date.getMonth()+n,1); }
+
+  function startOfWeek(date){
+    const d=new Date(date);
+    const day=(d.getDay()+6)%7;
+    d.setHours(12,0,0,0);
+    d.setDate(d.getDate()-day);
+    return d;
+  }
+
+  function daysInMonthGrid(anchor){
+    const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1, 12);
+    const start = startOfWeek(first);
+    return Array.from({length:42},(_,i)=>addDays(start,i));
+  }
+
+  function greetingForNow(){
+    const h = new Date().getHours();
+    if(h < 12) return 'Bom dia.';
+    if(h < 18) return 'Boa tarde.';
+    return 'Boa noite.';
+  }
 
   function bindNavigation(){
-    document.querySelectorAll('[data-section]').forEach(el => el.addEventListener('click', () => showSection(el.dataset.section)));
+    document.querySelectorAll('[data-section]').forEach(el => {
+      el.addEventListener('click', () => showSection(el.dataset.section));
+    });
+
+    $('themeToggle').addEventListener('click', toggleTheme);
     $('reflectionShortcut').addEventListener('click', showReflections);
-    $('todayReflectionCard').addEventListener('click', () => openReflection(todayReflection()));
-    $('closeReflection').addEventListener('click', closeReflectionModal);
+    $('todayReflectionCard').addEventListener('click', () => openReflection(todayReflection(), false));
+    $('closeReflection').addEventListener('click', () => closeReflectionModal(true));
     $('backFromReflections').addEventListener('click', () => showSection(reflectionReturnSection));
+
     $('prevPageBtn').addEventListener('click', () => turnDailyPage(-1));
     $('nextPageBtn').addEventListener('click', () => turnDailyPage(1));
     $('prevMonthBtn').addEventListener('click', () => turnFinancePage(-1));
     $('nextMonthBtn').addEventListener('click', () => turnFinancePage(1));
     $('addGoalBtn').addEventListener('click', addGoal);
+
+    $('agendaPrevBtn').addEventListener('click', () => turnAgenda(-1));
+    $('agendaNextBtn').addEventListener('click', () => turnAgenda(1));
+
+    document.querySelectorAll('[data-agenda-view]').forEach(btn => {
+      btn.addEventListener('click', () => setAgendaView(btn.dataset.agendaView));
+    });
+  }
+
+  function renderStickerTabs(){
+    const nav = $('stickerTabs');
+    nav.innerHTML = '';
+    state.stickerOrder.forEach(section => {
+      const btn = document.createElement('button');
+      btn.className = 'tab';
+      btn.dataset.section = section;
+      btn.textContent = LABELS[section];
+      btn.classList.toggle('active', currentSection === section);
+      btn.addEventListener('click', () => showSection(section));
+      nav.appendChild(btn);
+    });
+  }
+
+  function renderFloatingStickers(){
+    const root = $('floatingStickers');
+    root.innerHTML = '';
+
+    state.stickerOrder.forEach((section,index) => {
+      const btn = document.createElement('button');
+      btn.className = 'floating-sticker';
+      btn.dataset.section = section;
+      btn.dataset.slot = String(index);
+      btn.style.setProperty('--sticker', STICKER_COLORS[section]);
+      btn.textContent = LABELS[section];
+      bindFloatingSticker(btn);
+      root.appendChild(btn);
+    });
+  }
+
+  function bindFloatingSticker(btn){
+    let holdTimer = null;
+    let longPress = false;
+    let moved = false;
+    let startX = 0;
+    let startY = 0;
+    let originalIndex = -1;
+
+    const cancelTimer = () => {
+      clearTimeout(holdTimer);
+      holdTimer = null;
+    };
+
+    btn.addEventListener('pointerdown', e => {
+      if(e.pointerType === 'mouse' && e.button !== 0) return;
+      startX = e.clientX;
+      startY = e.clientY;
+      moved = false;
+      longPress = false;
+      originalIndex = state.stickerOrder.indexOf(btn.dataset.section);
+
+      holdTimer = setTimeout(() => {
+        longPress = true;
+        btn.classList.add('longpress');
+        try { btn.setPointerCapture(e.pointerId); } catch(_) {}
+        if(navigator.vibrate) navigator.vibrate(18);
+        showToast('Arraste para reorganizar');
+      }, 430);
+    });
+
+    btn.addEventListener('pointermove', e => {
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if(Math.hypot(dx,dy) > 8) moved = true;
+
+      if(!longPress){
+        if(Math.hypot(dx,dy) > 14) cancelTimer();
+        return;
+      }
+
+      const stageRect = $('homeStage').getBoundingClientRect();
+      const xPct = ((e.clientX - stageRect.left) / stageRect.width) * 100;
+      const yPct = ((e.clientY - stageRect.top) / stageRect.height) * 100;
+      btn.style.left = `${Math.max(5,Math.min(95,xPct))}%`;
+      btn.style.top = `${Math.max(5,Math.min(95,yPct))}%`;
+    });
+
+    const finish = e => {
+      cancelTimer();
+
+      if(longPress){
+        const buttons = [...document.querySelectorAll('.floating-sticker')].filter(b => b !== btn);
+        let nearest = null;
+        let best = Infinity;
+
+        buttons.forEach(other => {
+          const r = other.getBoundingClientRect();
+          const cx = r.left + r.width/2;
+          const cy = r.top + r.height/2;
+          const dist = Math.hypot((e.clientX || cx)-cx,(e.clientY || cy)-cy);
+          if(dist < best){ best = dist; nearest = other; }
+        });
+
+        if(nearest && best < 145){
+          const targetSection = nearest.dataset.section;
+          const targetIndex = state.stickerOrder.indexOf(targetSection);
+          if(targetIndex >= 0 && originalIndex >= 0 && targetIndex !== originalIndex){
+            const next = [...state.stickerOrder];
+            [next[originalIndex],next[targetIndex]] = [next[targetIndex],next[originalIndex]];
+            state.stickerOrder = next;
+            saveState();
+            showToast('Ordem salva');
+          }
+        }
+
+        renderFloatingStickers();
+        renderStickerTabs();
+      }else if(!moved){
+        showSection(btn.dataset.section);
+      }
+    };
+
+    btn.addEventListener('pointerup', finish);
+    btn.addEventListener('pointercancel', () => {
+      cancelTimer();
+      renderFloatingStickers();
+    });
   }
 
   function showSection(section){
-    if (section==='home') currentSection='home';
-    else if (DAILY_SECTIONS.includes(section)) { currentSection=section; activeDailySection=section; }
-    else if (section==='financeiro') currentSection='financeiro';
-    else return;
+    currentSection = section;
+    app.classList.toggle('home-mode', section === 'home');
 
-    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active-section'));
-    document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.section===currentSection));
-    if (currentSection==='home') $('homeSection').classList.add('active-section');
-    else if (currentSection==='financeiro') $('financeSection').classList.add('active-section');
-    else $('dailySection').classList.add('active-section');
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active-section'));
+
+    if(section === 'home'){
+      $('homeSection').classList.add('active-section');
+    }else if(section === 'agenda'){
+      $('agendaSection').classList.add('active-section');
+    }else if(section === 'financeiro'){
+      $('financeSection').classList.add('active-section');
+    }else if(DAILY_SECTIONS.includes(section)){
+      activeDailySection = section;
+      $('dailySection').classList.add('active-section');
+    }else{
+      return;
+    }
+
+    renderStickerTabs();
     renderAll();
     window.scrollTo({top:0,behavior:'smooth'});
   }
 
   function showReflections(){
-    reflectionReturnSection=currentSection; currentSection='reflections';
-    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active-section'));
-    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    reflectionReturnSection = currentSection;
+    currentSection = 'reflections';
+    app.classList.remove('home-mode');
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active-section'));
     $('reflectionsSection').classList.add('active-section');
+    renderStickerTabs();
     renderReflectionHistory();
     window.scrollTo({top:0,behavior:'smooth'});
   }
 
   function bindInputs(){
     dailyNotes.addEventListener('input', () => {
-      const key=isoDate(currentDate);
-      if (!state.notes[activeDailySection]) state.notes[activeDailySection]={};
-      state.notes[activeDailySection][key]=dailyNotes.value;
-      saveState(); updatePlaceholder(); renderTimeline($('sharedTimeline'),currentDate);
-      if (sameDay(currentDate,new Date())) { renderTimeline($('homeTimeline'),new Date()); renderHomeEvents(); }
+      const key = isoDate(currentDate);
+      if(!state.notes[activeDailySection]) state.notes[activeDailySection] = {};
+      state.notes[activeDailySection][key] = dailyNotes.value;
+      saveState();
+      updateDailyPlaceholder();
+      refreshCurrentDateVisuals();
+    });
+
+    agendaNotes.addEventListener('input', () => {
+      const key = isoDate(currentDate);
+      if(!state.notes.agenda) state.notes.agenda = {};
+      state.notes.agenda[key] = agendaNotes.value;
+      saveState();
+      updateAgendaPlaceholder();
+      refreshCurrentDateVisuals();
     });
 
     financeNotes.addEventListener('input', () => {
-      state.finance[monthKey(currentMonth)]=financeNotes.value;
-      saveState(); renderFinanceBalance(); updateFinancePlaceholder();
+      state.finance[monthKey(currentMonth)] = financeNotes.value;
+      saveState();
+      renderFinanceBalance();
+      updateFinancePlaceholder();
     });
+  }
+
+  function refreshCurrentDateVisuals(){
+    renderTimeline($('sharedTimeline'), currentDate);
+    renderTimeline($('agendaTimeline'), currentDate);
+    if(sameDay(currentDate,new Date())){
+      renderTimeline($('homeTimeline'), new Date());
+      renderHomeEvents();
+    }
+    if(agendaView === 'week') renderWeek();
+    if(agendaView === 'month') renderMonth();
   }
 
   function renderAll(){
-    $('topDate').textContent=formatShortDate(new Date());
-    renderGoals(); renderDailyPage(); renderFinancePage();
-    renderTimeline($('homeTimeline'),new Date()); renderHomeEvents();
-    $('reflectionPreview').textContent=todayReflection().text;
+    $('topDate').textContent = formatShortDate(new Date());
+    $('dayGreeting').textContent = greetingForNow();
+
+    renderStickerTabs();
+    renderFloatingStickers();
+    renderGoals();
+    renderTimeline($('homeTimeline'), new Date());
+    renderHomeEvents();
+    $('reflectionPreview').textContent = todayReflection().text;
+
+    renderDailyPage();
+    renderFinancePage();
+    renderAgenda();
+
+    maybeShowStickerHint();
   }
 
   function renderGoals(){
-    const dayKey=isoDate(new Date()), checks=state.goalChecks[dayKey]||{}, list=$('goalsList');
-    list.innerHTML='';
-    state.goals.forEach(goal=>{
-      const row=document.createElement('div'); row.className='goal-row';
-      const check=document.createElement('button');
-      check.className='goal-check'+(checks[goal.id]?' checked':''); check.type='button';
-      check.setAttribute('aria-label',checks[goal.id]?'Desmarcar meta':'Marcar meta');
-      check.addEventListener('click',()=>{
-        if(!state.goalChecks[dayKey]) state.goalChecks[dayKey]={};
-        state.goalChecks[dayKey][goal.id]=!state.goalChecks[dayKey][goal.id];
-        saveState(); renderGoals();
+    const dayKey = isoDate(new Date());
+    const checks = state.goalChecks[dayKey] || {};
+    const list = $('goalsList');
+    list.innerHTML = '';
+
+    state.goals.forEach(goal => {
+      const row = document.createElement('div');
+      row.className = 'goal-row';
+
+      const check = document.createElement('button');
+      check.className = 'goal-check' + (checks[goal.id] ? ' checked' : '');
+      check.type = 'button';
+      check.setAttribute('aria-label', checks[goal.id] ? 'Desmarcar meta' : 'Marcar meta');
+      check.addEventListener('click', () => {
+        if(!state.goalChecks[dayKey]) state.goalChecks[dayKey] = {};
+        state.goalChecks[dayKey][goal.id] = !state.goalChecks[dayKey][goal.id];
+        saveState();
+        renderGoals();
       });
-      const input=document.createElement('input');
-      input.className='goal-input'+(checks[goal.id]?' done':''); input.value=goal.text; input.type='text'; input.autocomplete='off';
+
+      const input = document.createElement('input');
+      input.className = 'goal-input' + (checks[goal.id] ? ' done' : '');
+      input.value = goal.text;
+      input.type = 'text';
+      input.autocomplete = 'off';
       input.setAttribute('aria-label','Texto da meta');
-      input.addEventListener('input',()=>{ goal.text=input.value; saveState(); });
-      input.addEventListener('blur',()=>{
-        if(!goal.text.trim() && state.goals.length>1){
-          state.goals=state.goals.filter(g=>g.id!==goal.id);
-          Object.values(state.goalChecks).forEach(day=>{ if(day) delete day[goal.id]; });
-          saveState(); renderGoals();
+      input.addEventListener('input', () => {
+        goal.text = input.value;
+        saveState();
+      });
+      input.addEventListener('blur', () => {
+        if(!goal.text.trim() && state.goals.length > 1){
+          state.goals = state.goals.filter(g => g.id !== goal.id);
+          Object.values(state.goalChecks).forEach(day => { if(day) delete day[goal.id]; });
+          saveState();
+          renderGoals();
         }
       });
-      row.append(check,input); list.appendChild(row);
+
+      row.append(check,input);
+      list.appendChild(row);
     });
-    const total=state.goals.filter(g=>g.text.trim()).length;
-    const completed=state.goals.filter(g=>g.text.trim() && checks[g.id]).length;
-    $('goalCount').textContent=`${completed}/${total}`;
-    $('goalProgress').style.width=total?`${(completed/total)*100}%`:'0%';
-    $('addGoalBtn').style.display=state.goals.length>=5?'none':'inline-block';
+
+    const total = state.goals.filter(g => g.text.trim()).length;
+    const completed = state.goals.filter(g => g.text.trim() && checks[g.id]).length;
+    $('goalCount').textContent = `${completed}/${total}`;
+    $('goalProgress').style.width = total ? `${(completed/total)*100}%` : '0%';
+    $('addGoalBtn').style.display = state.goals.length >= 5 ? 'none' : 'inline-block';
   }
 
   function addGoal(){
-    if(state.goals.length>=5) return;
-    state.goals.push({id:`g-${Date.now().toString(36)}`,text:''}); saveState(); renderGoals();
-    requestAnimationFrame(()=>{ const inputs=document.querySelectorAll('.goal-input'); inputs[inputs.length-1]?.focus(); });
+    if(state.goals.length >= 5) return;
+    state.goals.push({id:`g-${Date.now().toString(36)}`,text:''});
+    saveState();
+    renderGoals();
+    requestAnimationFrame(() => {
+      const inputs = document.querySelectorAll('.goal-input');
+      inputs[inputs.length-1]?.focus();
+    });
+  }
+
+  function maybeShowStickerHint(){
+    if(currentSection !== 'home' || state.seenStickerHint) return;
+    const hint = $('stickerHint');
+    hint.hidden = false;
+    setTimeout(() => {
+      hint.hidden = true;
+      state.seenStickerHint = true;
+      saveState();
+    }, 4200);
+  }
+
+  function setAgendaView(view){
+    agendaView = ['day','week','month'].includes(view) ? view : 'day';
+    state.agendaView = agendaView;
+    saveState();
+
+    document.querySelectorAll('[data-agenda-view]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.agendaView === agendaView);
+    });
+
+    document.querySelectorAll('.agenda-view').forEach(v => v.classList.remove('active-agenda-view'));
+    if(agendaView === 'day') $('agendaDayView').classList.add('active-agenda-view');
+    if(agendaView === 'week') $('agendaWeekView').classList.add('active-agenda-view');
+    if(agendaView === 'month') $('agendaMonthView').classList.add('active-agenda-view');
+
+    renderAgenda();
+  }
+
+  function renderAgenda(){
+    document.querySelectorAll('[data-agenda-view]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.agendaView === agendaView);
+    });
+
+    document.querySelectorAll('.agenda-view').forEach(v => v.classList.remove('active-agenda-view'));
+
+    if(agendaView === 'day'){
+      $('agendaDayView').classList.add('active-agenda-view');
+      $('agendaTitle').textContent = titleCaseFirst(formatDate(currentDate));
+      agendaNotes.value = state.notes.agenda?.[isoDate(currentDate)] || '';
+      $('agendaPageNumber').textContent = `${formatShortDate(currentDate)} · ${sameDay(currentDate,new Date()) ? 'hoje' : 'página diária'}`;
+      updateAgendaPlaceholder();
+      renderTimeline($('agendaTimeline'), currentDate);
+    }
+
+    if(agendaView === 'week'){
+      $('agendaWeekView').classList.add('active-agenda-view');
+      const start = startOfWeek(currentDate);
+      const end = addDays(start,6);
+      $('agendaTitle').textContent = `${formatShortDate(start)} — ${formatShortDate(end)}`;
+      renderWeek();
+    }
+
+    if(agendaView === 'month'){
+      $('agendaMonthView').classList.add('active-agenda-view');
+      $('agendaTitle').textContent = titleCaseFirst(new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(currentDate));
+      renderMonth();
+    }
+  }
+
+  function renderWeek(){
+    const root = $('weekGrid');
+    root.innerHTML = '';
+    const start = startOfWeek(currentDate);
+
+    for(let i=0;i<7;i++){
+      const date = addDays(start,i);
+      const events = parseEventsForDate(date);
+      const card = document.createElement('button');
+      card.className = 'week-day-card';
+      if(sameDay(date,new Date())) card.classList.add('today');
+      if(sameDay(date,currentDate)) card.classList.add('selected');
+
+      const weekday = new Intl.DateTimeFormat('pt-BR',{weekday:'short'}).format(date).replace('.','').toUpperCase();
+      const time = document.createElement('time');
+      time.textContent = weekday;
+      const day = document.createElement('b');
+      day.textContent = date.getDate();
+      card.append(time,day);
+
+      if(events.length){
+        events.slice(0,4).forEach(event => {
+          const row = document.createElement('div');
+          row.className = 'week-event';
+          const dot = document.createElement('i');
+          dot.style.setProperty('--c',event.color);
+          const label = document.createElement('span');
+          label.textContent = `${event.time} ${event.label}`;
+          row.append(dot,label);
+          card.appendChild(row);
+        });
+        if(events.length > 4){
+          const more = document.createElement('div');
+          more.className = 'week-empty';
+          more.textContent = `+${events.length-4} compromisso(s)`;
+          card.appendChild(more);
+        }
+      }else{
+        const empty = document.createElement('div');
+        empty.className = 'week-empty';
+        empty.textContent = 'Dia livre';
+        card.appendChild(empty);
+      }
+
+      card.addEventListener('click', () => {
+        currentDate = date;
+        setAgendaView('day');
+      });
+
+      root.appendChild(card);
+    }
+  }
+
+  function renderMonth(){
+    const root = $('monthGrid');
+    root.innerHTML = '';
+    const anchorMonth = currentDate.getMonth();
+    const dates = daysInMonthGrid(currentDate);
+
+    dates.forEach(date => {
+      const cell = document.createElement('button');
+      cell.className = 'month-day';
+      if(date.getMonth() !== anchorMonth) cell.classList.add('outside');
+      if(sameDay(date,new Date())) cell.classList.add('today');
+      if(sameDay(date,currentDate)) cell.classList.add('selected');
+
+      const num = document.createElement('span');
+      num.className = 'month-day-number';
+      num.textContent = date.getDate();
+      cell.appendChild(num);
+
+      const events = parseEventsForDate(date);
+      const categories = [...new Set(events.map(e => e.section))];
+      if(categories.length){
+        const dots = document.createElement('div');
+        dots.className = 'month-dots';
+        categories.slice(0,5).forEach(section => {
+          const dot = document.createElement('i');
+          dot.style.setProperty('--c', COLORS[section]);
+          dots.appendChild(dot);
+        });
+        cell.appendChild(dots);
+      }
+
+      cell.addEventListener('click', () => {
+        currentDate = new Date(date);
+        setAgendaView('day');
+      });
+
+      root.appendChild(cell);
+    });
+  }
+
+  function turnAgenda(direction){
+    if(agendaView === 'day'){
+      animatePageTurn(direction, () => {
+        currentDate = addDays(currentDate,direction);
+        renderAgenda();
+      });
+    }else if(agendaView === 'week'){
+      animatePageTurn(direction, () => {
+        currentDate = addDays(currentDate,direction*7);
+        renderAgenda();
+      });
+    }else{
+      animatePageTurn(direction, () => {
+        currentDate = addMonths(currentDate,direction);
+        renderAgenda();
+      });
+    }
   }
 
   function renderDailyPage(){
     if(!DAILY_SECTIONS.includes(activeDailySection)) return;
-    const key=isoDate(currentDate);
-    $('sectionEyebrow').textContent=LABELS[activeDailySection];
-    $('pageTitle').textContent=formatDate(currentDate);
-    dailyNotes.value=state.notes[activeDailySection]?.[key]||'';
-    $('dailyPlaceholder').textContent=PLACEHOLDERS[activeDailySection];
-    $('dailyPageNumber').textContent=`${formatShortDate(currentDate)} · ${sameDay(currentDate,new Date())?'hoje':'página diária'}`;
-    updatePlaceholder(); renderTimeline($('sharedTimeline'),currentDate);
+    const key = isoDate(currentDate);
+    $('sectionEyebrow').textContent = LABELS[activeDailySection];
+    $('pageTitle').textContent = titleCaseFirst(formatDate(currentDate));
+    dailyNotes.value = state.notes[activeDailySection]?.[key] || '';
+    $('dailyPlaceholder').textContent = PLACEHOLDERS[activeDailySection];
+    $('dailyPageNumber').textContent = `${formatShortDate(currentDate)} · ${sameDay(currentDate,new Date()) ? 'hoje' : 'página diária'}`;
+    updateDailyPlaceholder();
+    renderTimeline($('sharedTimeline'), currentDate);
   }
-  function updatePlaceholder(){ $('dailyPlaceholder').style.display=dailyNotes.value?'none':'block'; }
+
+  function updateDailyPlaceholder(){
+    $('dailyPlaceholder').style.display = dailyNotes.value ? 'none' : 'block';
+  }
+
+  function updateAgendaPlaceholder(){
+    $('agendaPlaceholder').style.display = agendaNotes.value ? 'none' : 'block';
+  }
 
   function renderFinancePage(){
-    const key=monthKey(currentMonth);
-    $('financeTitle').textContent=new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(currentMonth);
-    financeNotes.value=state.finance[key]||'';
-    $('financePageNumber').textContent=`página mensal · ${key}`;
-    updateFinancePlaceholder(); renderFinanceBalance();
+    const key = monthKey(currentMonth);
+    $('financeTitle').textContent = titleCaseFirst(new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(currentMonth));
+    financeNotes.value = state.finance[key] || '';
+    $('financePageNumber').textContent = `página mensal · ${key}`;
+    updateFinancePlaceholder();
+    renderFinanceBalance();
   }
-  function updateFinancePlaceholder(){ document.querySelector('.finance-page .page-placeholder').style.display=financeNotes.value?'none':'block'; }
+
+  function updateFinancePlaceholder(){
+    document.querySelector('.finance-page .page-placeholder').style.display = financeNotes.value ? 'none' : 'block';
+  }
+
   function renderFinanceBalance(){
-    $('financeBalance').textContent=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(parseFinance(financeNotes.value));
+    $('financeBalance').textContent = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(parseFinance(financeNotes.value));
   }
+
   function parseFinance(text){
-    return text.split('\n').reduce((sum,line)=>{
-      const match=line.trim().match(/^([+-])\s*(?:R\$\s*)?([\d.]+(?:,\d{1,2})?|\d+(?:\.\d{1,2})?)/i);
+    return text.split('\n').reduce((sum,line) => {
+      const match = line.trim().match(/^([+-])\s*(?:R\$\s*)?([\d.]+(?:,\d{1,2})?|\d+(?:\.\d{1,2})?)/i);
       if(!match) return sum;
-      let raw=match[2];
-      if(raw.includes(',')) raw=raw.replace(/\./g,'').replace(',','.');
-      const amount=Number(raw);
-      return Number.isFinite(amount) ? sum+(match[1]==='-'?-amount:amount) : sum;
+      let raw = match[2];
+      if(raw.includes(',')) raw = raw.replace(/\./g,'').replace(',','.');
+      const amount = Number(raw);
+      return Number.isFinite(amount) ? sum + (match[1] === '-' ? -amount : amount) : sum;
     },0);
   }
 
-  function turnDailyPage(direction){ if(!DAILY_SECTIONS.includes(activeDailySection))return; animateFlip(direction); currentDate=addDays(currentDate,direction); renderDailyPage(); }
-  function turnFinancePage(direction){ animateFlip(direction); currentMonth=addMonths(currentMonth,direction); renderFinancePage(); }
-  function animateFlip(direction){
-    const cls=direction>0?'flip-next':'flip-prev';
-    paper.classList.remove('flip-next','flip-prev'); void paper.offsetWidth; paper.classList.add(cls);
-    setTimeout(()=>paper.classList.remove(cls),300);
+  function turnDailyPage(direction){
+    if(!DAILY_SECTIONS.includes(activeDailySection)) return;
+    animatePageTurn(direction, () => {
+      currentDate = addDays(currentDate,direction);
+      renderDailyPage();
+    });
+  }
+
+  function turnFinancePage(direction){
+    animatePageTurn(direction, () => {
+      currentMonth = addMonths(currentMonth,direction);
+      renderFinancePage();
+    });
+  }
+
+  function animatePageTurn(direction, update){
+    if(pageTurning) return;
+    pageTurning = true;
+    const sheet = $('pageTurnSheet');
+    const cls = direction > 0 ? 'turn-next' : 'turn-prev';
+    sheet.classList.remove('turn-next','turn-prev');
+    void sheet.offsetWidth;
+    sheet.classList.add(cls);
+
+    setTimeout(() => {
+      update?.();
+    }, 240);
+
+    setTimeout(() => {
+      sheet.classList.remove(cls);
+      pageTurning = false;
+    }, 540);
   }
 
   function parseEventsForDate(date){
-    const key=isoDate(date), events=[];
-    DAILY_SECTIONS.forEach(section=>{
-      const text=state.notes[section]?.[key]||'';
-      text.split('\n').forEach(line=>{ const parsed=parseTimedLine(line); if(parsed) events.push({...parsed,section,color:COLORS[section]}); });
+    const key = isoDate(date);
+    const events = [];
+
+    ['agenda','treino','dieta','trabalho'].forEach(section => {
+      const text = state.notes[section]?.[key] || '';
+      text.split('\n').forEach(line => {
+        const parsed = parseTimedLine(line);
+        if(parsed) events.push({...parsed,section,color:COLORS[section]});
+      });
     });
-    return events.sort((a,b)=>a.start-b.start);
+
+    return events.sort((a,b) => a.start-b.start);
   }
 
   function parseTimedLine(line){
-    const clean=line.trim();
-    const range=clean.match(/^(\d{1,2})(?::(\d{2})|h(?:(\d{2}))?)?\s*(?:-|–|até)\s*(\d{1,2})(?::(\d{2})|h(?:(\d{2}))?)?\s+(.+)$/i);
+    const clean = line.trim();
+
+    const range = clean.match(/^(\d{1,2})(?::(\d{2})|h(?:(\d{2}))?)?\s*(?:-|–|até)\s*(\d{1,2})(?::(\d{2})|h(?:(\d{2}))?)?\s+(.+)$/i);
     if(range){
-      const sh=Number(range[1]), sm=Number(range[2]??range[3]??0), eh=Number(range[4]), em=Number(range[5]??range[6]??0);
-      if(validTime(sh,sm)&&validTime(eh,em)){
-        const start=sh+sm/60; let end=eh+em/60; if(end<=start) end=start+1;
+      const sh=Number(range[1]),sm=Number(range[2]??range[3]??0),eh=Number(range[4]),em=Number(range[5]??range[6]??0);
+      if(validTime(sh,sm) && validTime(eh,em)){
+        const start=sh+sm/60;
+        let end=eh+em/60;
+        if(end<=start) end=start+1;
         return {start,end,label:range[7].trim(),time:`${pad2(sh)}:${pad2(sm)}–${pad2(eh)}:${pad2(em)}`};
       }
     }
-    const single=clean.match(/^(\d{1,2})(?::(\d{2})|h(?:(\d{2}))?)\s+(.+)$/i);
+
+    const single = clean.match(/^(\d{1,2})(?::(\d{2})|h(?:(\d{2}))?)\s+(.+)$/i);
     if(single){
       const h=Number(single[1]),m=Number(single[2]??single[3]??0);
-      if(validTime(h,m)){ const start=h+m/60; return {start,end:start+1,label:single[4].trim(),time:`${pad2(h)}:${pad2(m)}`}; }
+      if(validTime(h,m)){
+        const start=h+m/60;
+        return {start,end:start+1,label:single[4].trim(),time:`${pad2(h)}:${pad2(m)}`};
+      }
     }
+
     return null;
   }
-  function validTime(h,m){ return h>=0&&h<=23&&m>=0&&m<=59; }
+
+  function validTime(h,m){ return h>=0 && h<=23 && m>=0 && m<=59; }
   function pad2(n){ return String(n).padStart(2,'0'); }
 
   function renderTimeline(container,date){
-    if(!container)return;
+    if(!container) return;
     const startHour=6,endHour=24,span=endHour-startHour;
     container.innerHTML='';
-    const grid=document.createElement('div'); grid.className='timeline-grid';
+
+    const grid=document.createElement('div');
+    grid.className='timeline-grid';
     for(let i=0;i<span;i++) grid.appendChild(document.createElement('span'));
     container.appendChild(grid);
-    parseEventsForDate(date).forEach(event=>{
-      const visibleStart=Math.max(event.start,startHour),visibleEnd=Math.min(event.end,endHour);
-      if(visibleEnd<=startHour||visibleStart>=endHour)return;
-      const block=document.createElement('div'); block.className='timeline-event';
+
+    parseEventsForDate(date).forEach(event => {
+      const visibleStart=Math.max(event.start,startHour);
+      const visibleEnd=Math.min(event.end,endHour);
+      if(visibleEnd<=startHour || visibleStart>=endHour) return;
+
+      const block=document.createElement('div');
+      block.className='timeline-event';
       block.style.left=`${((visibleStart-startHour)/span)*100}%`;
       block.style.width=`${((visibleEnd-visibleStart)/span)*100}%`;
-      block.style.background=event.color; block.title=`${event.time} ${event.label}`;
+      block.style.background=event.color;
+      block.title=`${event.time} ${event.label}`;
       container.appendChild(block);
     });
-    const labels=document.createElement('div'); labels.className='timeline-labels';
+
+    const labels=document.createElement('div');
+    labels.className='timeline-labels';
     labels.innerHTML='<span>06</span><span>12</span><span>18</span><span>24</span>';
     container.appendChild(labels);
   }
 
   function renderHomeEvents(){
-    const root=$('homeEvents'),events=parseEventsForDate(new Date()); root.innerHTML='';
+    const root=$('homeEvents');
+    const events=parseEventsForDate(new Date());
+    root.innerHTML='';
+
     if(!events.length){
-      const empty=document.createElement('div'); empty.className='home-event';
-      empty.innerHTML='<span class="home-event-dot" style="background:#cfc8d5"></span><div><strong>Dia aberto</strong><span>Seus horários aparecem aqui ao escrevê-los nas páginas.</span></div>';
-      root.appendChild(empty); return;
+      const empty=document.createElement('div');
+      empty.className='home-event';
+      empty.innerHTML='<span class="home-event-dot" style="background:#aaa2b2"></span><div><strong>Dia aberto</strong><span>Seus horários aparecem aqui quando você escreve nas páginas.</span></div>';
+      root.appendChild(empty);
+      return;
     }
-    events.slice(0,6).forEach(event=>{
-      const row=document.createElement('div'); row.className='home-event';
-      const dot=document.createElement('span'); dot.className='home-event-dot'; dot.style.background=event.color;
-      const text=document.createElement('div'),strong=document.createElement('strong'),sub=document.createElement('span');
-      strong.textContent=`${event.time} · ${event.label}`; sub.textContent=LABELS[event.section];
-      text.append(strong,sub); row.append(dot,text); root.appendChild(row);
+
+    events.slice(0,6).forEach(event => {
+      const row=document.createElement('div');
+      row.className='home-event';
+      const dot=document.createElement('span');
+      dot.className='home-event-dot';
+      dot.style.background=event.color;
+      const text=document.createElement('div');
+      const strong=document.createElement('strong');
+      const sub=document.createElement('span');
+      strong.textContent=`${event.time} · ${event.label}`;
+      sub.textContent=LABELS[event.section];
+      text.append(strong,sub);
+      row.append(dot,text);
+      root.appendChild(row);
     });
   }
 
-  function dayOfYear(date){ const start=new Date(date.getFullYear(),0,0); return Math.floor((date-start)/86400000); }
+  function dayOfYear(date){
+    const start=new Date(date.getFullYear(),0,0);
+    return Math.floor((date-start)/86400000);
+  }
+
   function reflectionForDate(date){
     const idx=(dayOfYear(date)+date.getFullYear())%REFLECTIONS.length;
     const [text,prompt]=REFLECTIONS[idx];
     return {key:isoDate(date),date:new Date(date),text,prompt};
   }
+
   function todayReflection(){ return reflectionForDate(new Date()); }
+
   function archiveReflection(reflection){
-    state.reflectionHistory[reflection.key]={text:reflection.text,prompt:reflection.prompt}; saveState();
+    state.reflectionHistory[reflection.key]={text:reflection.text,prompt:reflection.prompt};
+    saveState();
   }
+
   function showDailyReflectionIfNeeded(){
-    const today=todayReflection(); archiveReflection(today);
-    if(state.lastReflectionShown!==today.key){
-      state.lastReflectionShown=today.key; localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); openReflection(today);
+    const today=todayReflection();
+    archiveReflection(today);
+
+    if(state.lastReflectionShown !== today.key){
+      state.lastReflectionShown=today.key;
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+      openReflection(today,true);
     }
   }
-  function openReflection(reflection){
+
+  function openReflection(reflection,isDaily){
     archiveReflection(reflection);
-    $('reflectionDate').textContent=formatDate(reflection.date);
+    $('reflectionDate').textContent=titleCaseFirst(formatDate(reflection.date));
     $('reflectionText').textContent=reflection.text;
     $('reflectionPrompt').textContent=reflection.prompt;
-    $('reflectionModal').classList.add('open'); $('reflectionModal').setAttribute('aria-hidden','false');
+    $('reflectionModal').dataset.daily = isDaily ? '1' : '0';
+    $('reflectionModal').classList.add('open');
+    $('reflectionModal').setAttribute('aria-hidden','false');
     document.body.style.overflow='hidden';
   }
-  function closeReflectionModal(){
-    $('reflectionModal').classList.remove('open'); $('reflectionModal').setAttribute('aria-hidden','true'); document.body.style.overflow='';
+
+  function closeReflectionModal(withTransition){
+    const wasDaily = $('reflectionModal').dataset.daily === '1';
+    $('reflectionModal').classList.remove('open');
+    $('reflectionModal').setAttribute('aria-hidden','true');
+    document.body.style.overflow='';
+
+    if(withTransition && wasDaily){
+      const reveal = $('entryReveal');
+      reveal.classList.remove('run');
+      void reveal.offsetWidth;
+      reveal.classList.add('run');
+      setTimeout(() => reveal.classList.remove('run'),760);
+      setTimeout(maybeShowStickerHint,820);
+    }
   }
+
   function renderReflectionHistory(){
-    const root=$('reflectionHistory'); root.innerHTML='';
+    const root=$('reflectionHistory');
+    root.innerHTML='';
     const entries=Object.entries(state.reflectionHistory).sort((a,b)=>b[0].localeCompare(a[0]));
-    if(!entries.length){ root.innerHTML='<div class="empty-history">As reflexões dos dias em que você abrir o VIVA aparecerão aqui.</div>'; return; }
-    entries.forEach(([key,item])=>{
-      const date=new Date(`${key}T12:00:00`),btn=document.createElement('button'),time=document.createElement('time'),strong=document.createElement('strong');
-      btn.className='history-item'; time.textContent=formatDate(date); strong.textContent=item.text; btn.append(time,strong);
-      btn.addEventListener('click',()=>openReflection({key,date,text:item.text,prompt:item.prompt||''}));
+
+    if(!entries.length){
+      root.innerHTML='<div class="empty-history">As reflexões dos dias em que você abrir o VIVA aparecerão aqui.</div>';
+      return;
+    }
+
+    entries.forEach(([key,item]) => {
+      const date=new Date(`${key}T12:00:00`);
+      const btn=document.createElement('button');
+      const time=document.createElement('time');
+      const strong=document.createElement('strong');
+
+      btn.className='history-item';
+      time.textContent=titleCaseFirst(formatDate(date));
+      strong.textContent=item.text;
+      btn.append(time,strong);
+
+      btn.addEventListener('click', () => openReflection({key,date,text:item.text,prompt:item.prompt||''},false));
       root.appendChild(btn);
     });
   }
 
   function bindPageGestures(){
-    bindEdgeHold($('edgeLeft'),-1); bindEdgeHold($('edgeRight'),1);
     let startX=0,startY=0,tracking=false;
-    paper.addEventListener('touchstart',e=>{
-      if(currentSection==='home'||currentSection==='reflections')return;
-      const t=e.target; if(t.closest('textarea, input, button, .edge-zone'))return;
-      const touch=e.touches[0]; startX=touch.clientX; startY=touch.clientY; tracking=true;
+
+    paper.addEventListener('touchstart',e => {
+      if(currentSection==='home' || currentSection==='reflections') return;
+      const target=e.target;
+      if(target.closest('textarea,input,button,.week-strip,.month-grid')) return;
+      const touch=e.touches[0];
+      startX=touch.clientX;
+      startY=touch.clientY;
+      tracking=true;
     },{passive:true});
-    paper.addEventListener('touchend',e=>{
-      if(!tracking)return; tracking=false;
-      const touch=e.changedTouches[0],dx=touch.clientX-startX,dy=touch.clientY-startY;
-      if(Math.abs(dx)<72||Math.abs(dx)<Math.abs(dy)*1.25)return;
-      if(currentSection==='financeiro')turnFinancePage(dx<0?1:-1);
-      else if(DAILY_SECTIONS.includes(currentSection))turnDailyPage(dx<0?1:-1);
+
+    paper.addEventListener('touchend',e => {
+      if(!tracking) return;
+      tracking=false;
+      const touch=e.changedTouches[0];
+      const dx=touch.clientX-startX;
+      const dy=touch.clientY-startY;
+
+      if(Math.abs(dx)<70 || Math.abs(dx)<Math.abs(dy)*1.25) return;
+
+      const direction=dx<0?1:-1;
+      if(currentSection==='agenda') turnAgenda(direction);
+      else if(currentSection==='financeiro') turnFinancePage(direction);
+      else if(DAILY_SECTIONS.includes(currentSection)) turnDailyPage(direction);
     },{passive:true});
   }
 
-  function bindEdgeHold(zone,direction){
-    let holdTimer=null,repeatTimer=null,longPress=false;
-    const clear=()=>{ clearTimeout(holdTimer); clearInterval(repeatTimer); holdTimer=null; repeatTimer=null; };
-    zone.addEventListener('pointerdown',e=>{
-      if(currentSection==='home'||currentSection==='reflections')return;
-      e.preventDefault(); longPress=false;
-      holdTimer=setTimeout(()=>{ longPress=true; turnCurrent(direction); repeatTimer=setInterval(()=>turnCurrent(direction),330); },520);
-    });
-    zone.addEventListener('pointerup',e=>{
-      if(currentSection==='home'||currentSection==='reflections')return;
-      e.preventDefault(); clear(); if(!longPress)turnCurrent(direction);
-    });
-    zone.addEventListener('pointercancel',clear); zone.addEventListener('pointerleave',clear);
-  }
-  function turnCurrent(direction){
-    if(currentSection==='financeiro')turnFinancePage(direction);
-    else if(DAILY_SECTIONS.includes(currentSection))turnDailyPage(direction);
+  function showToast(message){
+    const toast=$('toast');
+    toast.textContent=message;
+    toast.classList.add('show');
+    clearTimeout(showToast.timer);
+    showToast.timer=setTimeout(()=>toast.classList.remove('show'),1600);
   }
 
   function registerServiceWorker(){
-    if('serviceWorker' in navigator){
-      window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('Service worker não registrado:',err)));
-    }
+    if(!('serviceWorker' in navigator)) return;
+
+    window.addEventListener('load', async () => {
+      try{
+        const registration = await navigator.serviceWorker.register('./sw.js');
+        registration.update();
+      }catch(err){
+        console.warn('Service worker não registrado:',err);
+      }
+    });
   }
 })();
