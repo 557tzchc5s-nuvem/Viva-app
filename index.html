@@ -28,11 +28,14 @@
     <nav id="stickerTabs" class="sticker-tabs" aria-label="Capítulos do caderno"></nav>
 
     <main id="paper" class="paper" aria-live="polite">
-      <div class="page-turn-sheet" id="pageTurnSheet"></div>
+      <div class="page-turn-layer" id="pageTurnLayer" aria-hidden="true"></div>
 
       <section id="homeSection" class="section active-section home-section">
         <div class="home-stage" id="homeStage">
           <div class="floating-stickers" id="floatingStickers" aria-label="Áreas do VIVA"></div>
+          <div class="reorder-slots" id="reorderSlots" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i>
+          </div>
 
           <article class="notebook-cover" aria-label="Capa do VIVA">
             <div class="cover-spine"></div>
@@ -42,45 +45,21 @@
               <h1>VIVA</h1>
               <p>Sua vida em páginas.</p>
             </div>
-
             <div class="cover-greeting">
               <span id="dayGreeting">Bom dia.</span>
               <strong>Por onde começamos?</strong>
             </div>
-
-            <div class="cover-goals">
+            <div class="cover-goals compact-goals">
               <div class="cover-goals-head">
                 <span>Metas de hoje</span>
                 <strong id="goalCount">0/3</strong>
               </div>
-              <div class="progress-track"><div class="progress-bar" id="goalProgress"></div></div>
               <div id="goalsList" class="goals-list"></div>
               <button id="addGoalBtn" class="add-line" type="button">＋ nova meta</button>
             </div>
           </article>
         </div>
-
-        <div id="stickerHint" class="sticker-hint" hidden>Toque para abrir · segure para reorganizar</div>
-
-        <section class="home-glance">
-          <div class="glance-head">
-            <div>
-              <span class="eyebrow">Hoje</span>
-              <h2>Seu dia em uma linha</h2>
-            </div>
-          </div>
-          <div id="homeTimeline" class="timeline compact"></div>
-          <div id="homeEvents" class="home-events"></div>
-        </section>
-
-        <button class="reflection-card" id="todayReflectionCard" type="button">
-          <span class="reflection-symbol">✦</span>
-          <span>
-            <small>Reflexão de hoje</small>
-            <strong id="reflectionPreview"></strong>
-          </span>
-          <span class="chevron">›</span>
-        </button>
+        <div id="stickerHint" class="sticker-hint" hidden>Toque para abrir · segure e arraste para organizar</div>
       </section>
 
       <section id="agendaSection" class="section">

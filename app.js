@@ -217,7 +217,6 @@
 
     $('themeToggle').addEventListener('click', toggleTheme);
     $('reflectionShortcut').addEventListener('click', showReflections);
-    $('todayReflectionCard').addEventListener('click', () => openReflection(todayReflection(), false));
     $('closeReflection').addEventListener('click', () => closeReflectionModal(true));
     $('backFromReflections').addEventListener('click', () => showSection(reflectionReturnSection));
 
@@ -266,90 +265,93 @@
   }
 
   function bindFloatingSticker(btn){
-    let holdTimer = null;
-    let longPress = false;
-    let moved = false;
-    let startX = 0;
-    let startY = 0;
-    let originalIndex = -1;
+    let timer=null, dragging=false, moved=false, pointerId=null, startX=0, startY=0;
+    const stage=$('homeStage');
 
-    const cancelTimer = () => {
-      clearTimeout(holdTimer);
-      holdTimer = null;
+    const clearTimer=()=>{clearTimeout(timer);timer=null};
+
+    const enterReorder=()=>{
+      dragging=true;
+      btn.classList.add('longpress');
+      stage.classList.add('reorder-mode');
+      showToast('Arraste até uma posição');
+      try{ if(pointerId!==null) btn.setPointerCapture(pointerId); }catch(_){}
     };
 
-    btn.addEventListener('pointerdown', e => {
-      if(e.pointerType === 'mouse' && e.button !== 0) return;
-      startX = e.clientX;
-      startY = e.clientY;
-      moved = false;
-      longPress = false;
-      originalIndex = state.stickerOrder.indexOf(btn.dataset.section);
+    btn.addEventListener('pointerdown',e=>{
+      if(e.pointerType==='mouse'&&e.button!==0)return;
+      e.preventDefault();
+      pointerId=e.pointerId;
+      startX=e.clientX;startY=e.clientY;
+      moved=false;dragging=false;
+      clearTimer();
+      timer=setTimeout(enterReorder,420);
+    },{passive:false});
 
-      holdTimer = setTimeout(() => {
-        longPress = true;
-        btn.classList.add('longpress');
-        try { btn.setPointerCapture(e.pointerId); } catch(_) {}
-        if(navigator.vibrate) navigator.vibrate(18);
-        showToast('Arraste para reorganizar');
-      }, 430);
-    });
-
-    btn.addEventListener('pointermove', e => {
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      if(Math.hypot(dx,dy) > 8) moved = true;
-
-      if(!longPress){
-        if(Math.hypot(dx,dy) > 14) cancelTimer();
+    btn.addEventListener('pointermove',e=>{
+      const dx=e.clientX-startX,dy=e.clientY-startY,distance=Math.hypot(dx,dy);
+      if(distance>7)moved=true;
+      if(!dragging){
+        if(distance>18)clearTimer();
         return;
       }
+      e.preventDefault();
+      const rect=stage.getBoundingClientRect();
+      const x=Math.max(4,Math.min(96,((e.clientX-rect.left)/rect.width)*100));
+      const y=Math.max(5,Math.min(95,((e.clientY-rect.top)/rect.height)*100));
+      btn.style.left=`${x}%`;
+      btn.style.top=`${y}%`;
+      btn.style.animation='none';
+    },{passive:false});
 
-      const stageRect = $('homeStage').getBoundingClientRect();
-      const xPct = ((e.clientX - stageRect.left) / stageRect.width) * 100;
-      const yPct = ((e.clientY - stageRect.top) / stageRect.height) * 100;
-      btn.style.left = `${Math.max(5,Math.min(95,xPct))}%`;
-      btn.style.top = `${Math.max(5,Math.min(95,yPct))}%`;
-    });
+    const finish=e=>{
+      clearTimer();
 
-    const finish = e => {
-      cancelTimer();
+      if(dragging){
+        e.preventDefault();
+        const rect=stage.getBoundingClientRect();
+        const px=((e.clientX-rect.left)/rect.width)*100;
+        const py=((e.clientY-rect.top)/rect.height)*100;
+        const slots=[[18,15],[82,16],[92,53],[77,88],[18,86]];
 
-      if(longPress){
-        const buttons = [...document.querySelectorAll('.floating-sticker')].filter(b => b !== btn);
-        let nearest = null;
-        let best = Infinity;
-
-        buttons.forEach(other => {
-          const r = other.getBoundingClientRect();
-          const cx = r.left + r.width/2;
-          const cy = r.top + r.height/2;
-          const dist = Math.hypot((e.clientX || cx)-cx,(e.clientY || cy)-cy);
-          if(dist < best){ best = dist; nearest = other; }
+        let nearest=0,best=Infinity;
+        slots.forEach((slot,index)=>{
+          const d=Math.hypot(px-slot[0],py-slot[1]);
+          if(d<best){best=d;nearest=index;}
         });
 
-        if(nearest && best < 145){
-          const targetSection = nearest.dataset.section;
-          const targetIndex = state.stickerOrder.indexOf(targetSection);
-          if(targetIndex >= 0 && originalIndex >= 0 && targetIndex !== originalIndex){
-            const next = [...state.stickerOrder];
-            [next[originalIndex],next[targetIndex]] = [next[targetIndex],next[originalIndex]];
-            state.stickerOrder = next;
-            saveState();
-            showToast('Ordem salva');
-          }
+        const section=btn.dataset.section;
+        const from=state.stickerOrder.indexOf(section);
+
+        if(from>=0&&nearest!==from){
+          const next=[...state.stickerOrder];
+          const displaced=next[nearest];
+          next[nearest]=section;
+          next[from]=displaced;
+          state.stickerOrder=next;
+          saveState();
+          showToast('Ordem salva');
+        }else{
+          showToast('Posição mantida');
         }
 
+        stage.classList.remove('reorder-mode');
         renderFloatingStickers();
         renderStickerTabs();
       }else if(!moved){
         showSection(btn.dataset.section);
       }
+
+      dragging=false;
+      pointerId=null;
     };
 
-    btn.addEventListener('pointerup', finish);
-    btn.addEventListener('pointercancel', () => {
-      cancelTimer();
+    btn.addEventListener('pointerup',finish,{passive:false});
+    btn.addEventListener('pointercancel',()=>{
+      clearTimer();
+      dragging=false;
+      pointerId=null;
+      stage.classList.remove('reorder-mode');
       renderFloatingStickers();
     });
   }
@@ -419,10 +421,6 @@
   function refreshCurrentDateVisuals(){
     renderTimeline($('sharedTimeline'), currentDate);
     renderTimeline($('agendaTimeline'), currentDate);
-    if(sameDay(currentDate,new Date())){
-      renderTimeline($('homeTimeline'), new Date());
-      renderHomeEvents();
-    }
     if(agendaView === 'week') renderWeek();
     if(agendaView === 'month') renderMonth();
   }
@@ -434,9 +432,6 @@
     renderStickerTabs();
     renderFloatingStickers();
     renderGoals();
-    renderTimeline($('homeTimeline'), new Date());
-    renderHomeEvents();
-    $('reflectionPreview').textContent = todayReflection().text;
 
     renderDailyPage();
     renderFinancePage();
@@ -492,7 +487,6 @@
     const total = state.goals.filter(g => g.text.trim()).length;
     const completed = state.goals.filter(g => g.text.trim() && checks[g.id]).length;
     $('goalCount').textContent = `${completed}/${total}`;
-    $('goalProgress').style.width = total ? `${(completed/total)*100}%` : '0%';
     $('addGoalBtn').style.display = state.goals.length >= 5 ? 'none' : 'inline-block';
   }
 
@@ -742,22 +736,44 @@
   }
 
   function animatePageTurn(direction, update){
-    if(pageTurning) return;
-    pageTurning = true;
-    const sheet = $('pageTurnSheet');
-    const cls = direction > 0 ? 'turn-next' : 'turn-prev';
-    sheet.classList.remove('turn-next','turn-prev');
-    void sheet.offsetWidth;
-    sheet.classList.add(cls);
+    if(pageTurning)return;
+    pageTurning=true;
 
-    setTimeout(() => {
+    const source=document.querySelector('.section.active-section');
+    const layer=$('pageTurnLayer');
+
+    if(!source||!layer){
       update?.();
-    }, 240);
+      pageTurning=false;
+      return;
+    }
 
-    setTimeout(() => {
-      sheet.classList.remove(cls);
-      pageTurning = false;
-    }, 540);
+    const clone=source.cloneNode(true);
+    const sourceTextareas=source.querySelectorAll('textarea');
+    const cloneTextareas=clone.querySelectorAll('textarea');
+    sourceTextareas.forEach((area,index)=>{
+      if(cloneTextareas[index])cloneTextareas[index].textContent=area.value;
+    });
+
+    clone.classList.remove('active-section');
+    clone.style.display='block';
+    clone.style.minHeight='100%';
+
+    const page=document.createElement('div');
+    page.className=`turning-page ${direction>0?'next':'prev'}`;
+    page.appendChild(clone);
+
+    layer.innerHTML='';
+    layer.appendChild(page);
+    layer.classList.add('active');
+
+    setTimeout(()=>update?.(),95);
+
+    setTimeout(()=>{
+      layer.classList.remove('active');
+      layer.innerHTML='';
+      pageTurning=false;
+    },700);
   }
 
   function parseEventsForDate(date){
@@ -832,36 +848,6 @@
     labels.className='timeline-labels';
     labels.innerHTML='<span>06</span><span>12</span><span>18</span><span>24</span>';
     container.appendChild(labels);
-  }
-
-  function renderHomeEvents(){
-    const root=$('homeEvents');
-    const events=parseEventsForDate(new Date());
-    root.innerHTML='';
-
-    if(!events.length){
-      const empty=document.createElement('div');
-      empty.className='home-event';
-      empty.innerHTML='<span class="home-event-dot" style="background:#aaa2b2"></span><div><strong>Dia aberto</strong><span>Seus horários aparecem aqui quando você escreve nas páginas.</span></div>';
-      root.appendChild(empty);
-      return;
-    }
-
-    events.slice(0,6).forEach(event => {
-      const row=document.createElement('div');
-      row.className='home-event';
-      const dot=document.createElement('span');
-      dot.className='home-event-dot';
-      dot.style.background=event.color;
-      const text=document.createElement('div');
-      const strong=document.createElement('strong');
-      const sub=document.createElement('span');
-      strong.textContent=`${event.time} · ${event.label}`;
-      sub.textContent=LABELS[event.section];
-      text.append(strong,sub);
-      row.append(dot,text);
-      root.appendChild(row);
-    });
   }
 
   function dayOfYear(date){
